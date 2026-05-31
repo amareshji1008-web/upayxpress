@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>upayXpress</title>
+    
+    <link class="favicon-node" rel="icon" type="image/svg+xml" href="/favicon.svg">
+
+    <meta name="description" id="metaDescription" content="Explore insightful articles on Economics, Physics, Chemistry, Math, English, and Hindi on upayXpress.">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" id="canonicalLink" href="https://upayxpress.netlify.com/">
+
+    <link rel="stylesheet" href="globals.css">
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+    <div id="globalScreenLoader" class="global-screen-loader">
+        <div class="circular-spinner"></div>
+        <div class="loader-text">Connecting to database streams...</div>
+    </div>
+
+    <div id="topBanner" class="hero-banner" onclick="goToHome(event)"></div>
+
+    <div id="actionHeader" class="action-header">
+        <div class="header-top-row">
+            <button class="back-btn" onclick="goToHome(event)">← Back</button>
+            <div id="dynamicCategoryTitle" class="category-state-title">Category</div>
+        </div>
+        <div id="searchWrapperAnchor" class="search-wrapper"></div>
+    </div>
+
+    <div class="content-container">
+
+        <div id="homepageViewGroup">
+            <div id="homeSearchContainer" class="home-search-container">
+                <div id="searchFieldSlot" class="search-wrapper">
+                    <input type="text" id="searchInput" placeholder="Search articles on hotspots..." autocomplete="off">
+                    <div id="suggestionsPopup" class="search-results-popup"></div>
+                </div>
+            </div>
+
+            <div id="homeCategories">
+                <div class="category-section-title">Explore Categories</div>
+                <div class="category-grid">
+                    <a href="/economics" class="category-anchor-link" onclick="handleCategoryClick(event, 'economics')">
+                        <div class="category-box">
+                            <span class="category-icon">📉</span>
+                            <span>Economics</span>
+                        </div>
+                    </a>
+                    <a href="/physics" class="category-anchor-link" onclick="handleCategoryClick(event, 'physics')">
+                        <div class="category-box">
+                            <span class="category-icon">⚛️</span>
+                            <span>Physics</span>
+                        </div>
+                    </a>
+                    <a href="/chemistry" class="category-anchor-link" onclick="handleCategoryClick(event, 'chemistry')">
+                        <div class="category-box">
+                            <span class="category-icon">🧪</span>
+                            <span>Chemistry</span>
+                        </div>
+                    </a>
+                    <a href="/math" class="category-anchor-link" onclick="handleCategoryClick(event, 'math')">
+                        <div class="category-box">
+                            <span class="category-icon">🧮</span>
+                            <span>Math</span>
+                        </div>
+                    </a>
+                    <a href="/english" class="category-anchor-link" onclick="handleCategoryClick(event, 'english')">
+                        <div class="category-box">
+                            <span class="category-icon">🔤</span>
+                            <span>English</span>
+                        </div>
+                    </a>
+                    <a href="/hindi" class="category-anchor-link" onclick="handleCategoryClick(event, 'hindi')">
+                        <div class="category-box">
+                            <span class="category-icon">🇮🇳</span>
+                            <span>Hindi</span>
+                        </div>
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <main id="articleViewPanel" class="article-view-panel">
+            <h1 id="displayTitle">Article Content</h1>
+            <div id="displayBody" class="article-text-body">
+                <div class="inline-loading-box">
+                    <div class="mini-spinner"></div>
+                    <span>Synchronizing content layout...</span>
+                </div>
+            </div>
+        </main>
+
+        <section id="indexSectionBlock" class="topics-index-section">
+            <h2 id="indexTitle">Important Articles</h2>
+            <ul id="allArticlesList" class="line-by-line-list">
+                <li style="padding: 12px; color: var(--text-muted);">Initializing data synchronization tracks...</li>
+            </ul>
+        </section>
+
+    </div>
+
+    <script>
+        const SUPABASE_URL = "https://ywtgysbvugamjhrlwfue.supabase.co";
+        const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl3dGd5c2J2dWdhbWpocmx3ZnVlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2NzU1NjAsImV4cCI6MjA5NDI1MTU2MH0.pRgk7hALAc_fIaaiXtY_fzM57Tp9kVbTkpccJbQO6Vc";
+        
+        let supabaseClient = null;
+        let articlesCache = [];
+        const validCategories = ['economics', 'physics', 'chemistry', 'math', 'english', 'hindi'];
+
+        // DOM Mapping
+        const globalScreenLoader = document.getElementById('globalScreenLoader');
+        const topBanner = document.getElementById('topBanner');
+        const actionHeader = document.getElementById('actionHeader');
+        const dynamicCategoryTitle = document.getElementById('dynamicCategoryTitle');
+        const homepageViewGroup = document.getElementById('homepageViewGroup');
+        const articleViewPanel = document.getElementById('articleViewPanel');
+        const indexSectionBlock = document.getElementById('indexSectionBlock');
+        const indexTitle = document.getElementById('indexTitle');
+        
+        const searchFieldSlot = document.getElementById('searchFieldSlot');
+        const searchWrapperAnchor = document.getElementById('searchWrapperAnchor');
+        const homeSearchContainer = document.getElementById('homeSearchContainer');
+        
+        const searchInput = document.getElementById('searchInput');
+        const suggestionsPopup = document.getElementById('suggestionsPopup');
+        const allArticlesList = document.getElementById('allArticlesList');
+        const displayTitle = document.getElementById('displayTitle');
+        const displayBody = document.getElementById('displayBody');
+        
+        const metaDescription = document.getElementById('metaDescription');
+        const canonicalLink = document.getElementById('canonicalLink');
+
+        async function initEngine() {
+            // 🛑 OFFLINE SAFE BYPASS: Agar net nahi hai toh yahan se return ho jayega aur loader ghumta rahega
+            if (typeof supabase === 'undefined') {
+                console.warn("Supabase CDN inaccessible. Infinite loader circle holds screen state.");
+                return; 
+            }
+
+            try {
+                supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+                const { data, error } = await supabaseClient
+                    .from('upayxpress_table')
+                    .select('id, title, content, slug, category, type');
+
+                if (error) throw error;
+
+                articlesCache = data;
+                
+                // Hide circle loader only when data is completely fetched
+                if (globalScreenLoader) {
+                    globalScreenLoader.style.display = 'none';
+                }
+
+                renderHomeImportantList();
+                checkUrlRoute();
+            } catch (err) {
+                console.error("Database connection failure:", err.message);
+            }
+        }
+
+        function renderHomeImportantList() {
+            const importantArticles = articlesCache.filter(art => 
+                art.type && art.type.toLowerCase().trim() === 'important'
+            );
+            renderListUI(importantArticles);
+        }
+
+        function renderListUI(articles) {
+            if (articles.length === 0) {
+                allArticlesList.innerHTML = "<li style='padding:12px; color:var(--text-muted);'>No matching articles listed in this segment.</li>";
+                return;
+            }
+            allArticlesList.innerHTML = articles.map(art => `
+                <li>
+                    <a href="/${art.slug}" id="link-${art.slug}" onclick="handleNav(event, '${art.slug}')">
+                        👉 ${art.title}
+                    </a>
+                </li>
+            `).join('');
+        }
+
+        function handleCategoryClick(event, categoryName) {
+            if (event) event.preventDefault();
+            const cleanCat = categoryName.toLowerCase().trim();
+            window.history.pushState({}, '', `/${cleanCat}`);
+            
+            const filtered = articlesCache.filter(art => 
+                art.category && art.category.toLowerCase().trim() === cleanCat
+            );
+
+            const displayCatName = categoryName.charAt(0).toUpperCase() + categoryName.slice(1);
+            dynamicCategoryTitle.textContent = displayCatName;
+            
+            document.title = `${displayCatName} Articles | upayXpress`;
+            metaDescription.setAttribute('content', `Read premium educational articles inside ${displayCatName} category on upayXpress.`);
+            canonicalLink.setAttribute('href', `https://upayxpress.netlify.com/${cleanCat}`);
+            
+            articleViewPanel.style.display = 'none'; 
+            topBanner.style.display = 'none';
+            homepageViewGroup.style.display = 'none';
+            
+            searchWrapperAnchor.appendChild(searchFieldSlot);
+            actionHeader.style.display = 'flex';
+            
+            indexSectionBlock.style.display = 'block';
+            indexTitle.textContent = `${displayCatName} Articles`;
+            renderListUI(filtered);
+
+            searchInput.value = '';
+            suggestionsPopup.style.display = 'none';
+            window.scrollTo({ top: 0, behavior: 'instant' });
+        }
+
+        function handleNav(event, slug) {
+            if(event) event.preventDefault();
+            window.history.pushState({}, '', `/${slug}`); 
+            loadArticleContent(slug);
+        }
+
+        function loadArticleContent(slug) {
+            topBanner.style.display = 'none';
+            homepageViewGroup.style.display = 'none';
+            searchWrapperAnchor.appendChild(searchFieldSlot);
+            actionHeader.style.display = 'flex';
+            
+            displayTitle.textContent = "Loading Article...";
+            displayBody.innerHTML = `
+                <div class="inline-loading-box">
+                    <div class="mini-spinner"></div>
+                    <span>Fetching database records... Please wait...</span>
+                </div>
+            `;
+            articleViewPanel.style.display = 'block';
+            indexSectionBlock.style.display = 'none';
+
+            // Agar net nahi chal raha aur data empty hai, toh loading circle lock ho jayega
+            if (articlesCache.length === 0) {
+                return; 
+            }
+
+            const article = articlesCache.find(a => a.slug === slug);
+            if (article) {
+                displayTitle.textContent = article.title;
+                displayBody.innerHTML = article.content; 
+                
+                document.title = `${article.title} | upayXpress`;
+                
+                const tempDiv = document.createElement("div");
+                tempDiv.innerHTML = article.content;
+                const cleanTextSnippet = tempDiv.textContent.substring(0, 150).replace(/\s+/g, ' ').trim();
+                metaDescription.setAttribute('content', `${cleanTextSnippet}... Read full article on upayXpress.`);
+                canonicalLink.setAttribute('href', `https://upayxpress.netlify.com/${slug}`);
+                
+                const catName = article.category ? article.category.toLowerCase().trim() : "";
+                dynamicCategoryTitle.textContent = article.category ? (article.category.charAt(0).toUpperCase() + article.category.slice(1)) : "Article";
+                
+                if(catName) {
+                    const dynamicSisterArticles = articlesCache.filter(art => 
+                        art.category && art.category.toLowerCase().trim() === catName && art.slug !== slug
+                    );
+                    indexTitle.textContent = `Other Articles in ${dynamicCategoryTitle.textContent}`;
+                    renderListUI(dynamicSisterArticles);
+                    indexSectionBlock.style.display = 'block';
+                } else {
+                    indexSectionBlock.style.display = 'none';
+                }
+
+                searchInput.value = '';
+                suggestionsPopup.style.display = 'none';
+                window.scrollTo({ top: 0, behavior: 'instant' });
+            } else {
+                resetToDefaultHome();
+            }
+        }
+
+        function checkUrlRoute() {
+            let currentPath = window.location.pathname.substring(1).toLowerCase().trim(); 
+            if (currentPath && currentPath !== "index.html" && currentPath !== "") {
+                if(validCategories.includes(currentPath)) {
+                    handleCategoryClick(null, currentPath);
+                } else {
+                    loadArticleContent(currentPath);
+                }
+            } else {
+                resetToDefaultHome();
+            }
+        }
+
+        function goToHome(event) {
+            if(event) event.preventDefault();
+            window.history.pushState({}, '', '/');
+            resetToDefaultHome();
+        }
+
+        function resetToDefaultHome() {
+            document.title = "upayXpress";
+            metaDescription.setAttribute('content', "Explore insightful articles on Economics, Physics, Chemistry, Math, English, and Hindi on upayXpress.");
+            canonicalLink.setAttribute('href', "https://upayxpress.netlify.com/");
+            
+            articleViewPanel.style.display = 'none';
+            actionHeader.style.display = 'none';
+            
+            homeSearchContainer.appendChild(searchFieldSlot);
+            topBanner.style.display = 'flex';
+            homepageViewGroup.style.display = 'block';
+            indexSectionBlock.style.display = 'block';
+
+            indexTitle.textContent = "Important Articles";
+            searchInput.value = '';
+            suggestionsPopup.style.display = 'none';
+            
+            if (articlesCache.length > 0) {
+                renderHomeImportantList();
+            } else {
+                allArticlesList.innerHTML = "<li style='padding: 12px; color: var(--text-muted);'>Waiting for data streams...</li>";
+            }
+        }
+
+        searchInput.addEventListener('input', (e) => {
+            const query = e.target.value.toLowerCase().trim();
+            if (!query) {
+                suggestionsPopup.style.display = 'none';
+                return;
+            }
+
+            const filtered = articlesCache.filter(item => 
+                item.title.toLowerCase().includes(query) || 
+                item.content.toLowerCase().includes(query)
+            );
+            if (filtered.length > 0) {
+                suggestionsPopup.innerHTML = filtered.map(item => `
+                    <div class="search-result-row" onclick="handleNav(null, '${item.slug}')">
+                        🔍 ${item.title}
+                    </div>
+                `).join('');
+                suggestionsPopup.style.display = 'block';
+            } else {
+                suggestionsPopup.innerHTML = `<div class="search-result-row" style="color: var(--text-muted); pointer-events: none;">No articles matching lookup structure.</div>`;
+                suggestionsPopup.style.display = 'block';
+            }
+        });
+
+        window.addEventListener('popstate', checkUrlRoute);
+
+        document.addEventListener('click', (e) => {
+            if (!searchFieldSlot.contains(e.target)) {
+                suggestionsPopup.style.display = 'none';
+            }
+        });
+
+        initEngine();
+    </script>
+</body>
+</html>
